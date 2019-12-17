@@ -23,8 +23,9 @@ class ElasticsearchClient
     $this->client = new Client();
   }
 
-  private function callAPI($uri, $options = []) {
-    $r = $this->client->request('GET', $this->elasticsearchServerUrl . $uri, $options);
+  private function callAPI($uri, $options = [], $method = 'GET') {
+    $options['headers']['Content-Type'] = 'application/json; charset=utf8';
+    $r = $this->client->request($method, $this->elasticsearchServerUrl . $uri, $options);
     $body = (string)$r->getBody();
     return json_decode($body, true);
   }
@@ -69,6 +70,60 @@ class ElasticsearchClient
 
   public function getClusterHealth() {
     return $this->callAPI('/_cluster/health');
+  }
+
+  public function createIndex($indexName, $settings) {
+    $this->callAPI('/' . $indexName, [
+      'body' => json_encode(['settings' => $settings])
+    ], 'PUT');
+  }
+
+  public function updateIndexSettings($indexName, $settings) {
+    $this->callAPI('/' . $indexName . '/_settings', [
+      'body' => json_encode($settings)
+    ], 'PUT');
+  }
+
+  public function closeIndex($indexName) {
+    $this->callAPI('/' . $indexName . '/_close', [], 'POST');
+  }
+
+  public function openIndex($indexName) {
+    $this->callAPI('/' . $indexName . '/_open', [], 'POST');
+  }
+
+  public function deleteIndex($indexName) {
+    $this->callAPI('/' . $indexName, [], 'DELETE');
+  }
+
+  public function putMapping($indexName, $mappingName, $properties, $dynamicTemplates = null) {
+    $params = [
+      'properties' => $properties
+    ];
+    if($dynamicTemplates != null) {
+      $params['dynamic_templates'] = $dynamicTemplates;
+    }
+    $this->callAPI('/' . $indexName . '/_mapping/' . $mappingName, [
+      'body' => json_encode($params)
+    ], 'PUT');
+  }
+
+  public function index($indexName, $mappingName, $document, $id = null) {
+
+    return $this->callAPI('/' . $indexName . '/' . $mappingName . ($id != null ? '/' . $id : '/'), [
+      'body' => json_encode($document)
+    ], $id != null ? 'PUT' : 'POST');
+
+  }
+
+  public function delete($indexName, $mappingName, $id) {
+
+    $this->callAPI('/' . $indexName . '/' . $mappingName . '/' . $id, [], 'DELETE');
+
+  }
+
+  public function flush() {
+    $this->callAPI('/_all/_flush', [], 'POST');
   }
 
 }
